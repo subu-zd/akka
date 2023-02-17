@@ -1,5 +1,8 @@
 package part_1
 
+import java.util.concurrent.Executors
+import scala.concurrent.{ExecutionContext, Future}
+
 object ThreadModelLimitations {
 
   // 1) OO encapsulation is only valid in the Single threaded model
@@ -68,11 +71,30 @@ object ThreadModelLimitations {
     }
   }
 
-  def main(args: Array[String]): Unit = {
+  def demoBackgroundDelegation = {
     runningThread.start()
     Thread.sleep(1000)
     delegateToBackgroundThread(() => println("I'm running from another thread"))
     Thread.sleep(1000)
     delegateToBackgroundThread(() => println("This should run in the background again"))
+  }
+  // 3) Tracing and dealing with errors is a Pain in multi-threaded/distributed apps
+
+  implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(8))
+
+  // sum 1M numbers in between 10 threads
+  val futures = (0 to 9)
+    .map(i => BigInt(100000 * i) until BigInt(100000 * (i + 1))) // 0 - 99999, 100000 - 199999 and so on
+    .map(range => Future {
+      // bug
+      if (range.contains(BigInt(546732))) throw new RuntimeException("invalid number")
+      range.sum
+    })
+
+  val sumFuture = Future.reduceLeft(futures)(_ + _)
+
+
+  def main(args: Array[String]): Unit = {
+    sumFuture.onComplete(println)
   }
 }
